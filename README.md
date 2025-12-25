@@ -6,7 +6,7 @@
 코딩 에이전트가 헤매지 않도록 디렉토리 구조를 잡아줍니다.
 
 ```plaintext
-mnist-go/
+go-mnist-scratch/
 ├── data/               # MNIST 데이터셋 파일 (idx1-ubyte, idx3-ubyte)
 ├── matrix/             # 행렬 연산 라이브러리 (직접 구현)
 │   └── matrix.go
@@ -18,6 +18,8 @@ mnist-go/
 ├── main.go             # 학습 실행 및 모델 저장 (Training Mode)
 └── server.go           # 웹 서버 및 추론 API (Inference Mode)
 ```
+
+> **참고:** IDX 파일 형식은 MNIST 데이터셋의 전용 바이너리 포맷입니다. 자세한 사양은 [http://yann.lecun.com/exdb/mnist/](http://yann.lecun.com/exdb/mnist/)에서 확인할 수 있습니다.
 
 ## 2. 단계별 구현 명세 (Implementation Steps)
 
@@ -44,7 +46,7 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 
 **아키텍처:**
 - **Input Layer:** 784 노드 (28x28 픽셀)
-- **Hidden Layer:** 100~200 노드 (CPU 부하를 고려한 크기)
+- **Hidden Layer:** 200 노드 (CPU 부하를 고려한 크기)
 - **Output Layer:** 10 노드 (숫자 0~9)
 
 **수학적 로직:**
@@ -56,6 +58,11 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 ### Phase 4: 학습 및 모델 저장 (main.go)
 에이전트에게 학습 루프를 작성하게 합니다.
 
+**학습 파라미터 (권장값):**
+- **Learning Rate:** 0.1 ~ 0.5 (Sigmoid 활성화 함수에 적합)
+- **Epochs:** 10 ~ 30 (정확도 90%+ 달성 목표)
+- **Batch Size:** 32 ~ 128 (메모리 효율성 고려)
+
 **기능:**
 - 데이터 로드.
 - 에폭(Epoch) 반복.
@@ -63,6 +70,10 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 
 ### Phase 5: 추론 웹 서버 (server.go)
 "작고 빠른 모델"의 결과를 눈으로 확인하는 단계입니다.
+
+**성능 목표:**
+- **추론 속도:** 단일 예측 < 10ms (CPU 기준)
+- **정확도:** 테스트셋 기준 90% 이상
 
 **기능:**
 - 서버 시작 시 미리 저장된 모델 파일(JSON/Gob) 로드.
@@ -86,6 +97,11 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 - **입력층:** 784 (28x28)
 - **은닉층:** 200 (활성화 함수: Sigmoid)
 - **출력층:** 10 (활성화 함수: Sigmoid)
+
+**Training Hyperparameters:**
+- **Learning Rate:** 0.3
+- **Epochs:** 20
+- **Batch Size:** 64
 
 **Components:**
 - `utils/loader.go`: MNIST IDX 바이너리 파일을 읽어서 파싱하는 로직.
