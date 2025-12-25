@@ -9,14 +9,16 @@
 go-mnist-scratch/
 ├── data/               # MNIST 데이터셋 파일 (idx1-ubyte, idx3-ubyte)
 ├── matrix/             # 행렬 연산 라이브러리 (직접 구현)
-│   └── matrix.go
+│   ├── matrix.go
+│   └── matrix_test.go  # [NEW] 행렬 연산 유닛 테스트
 ├── neural/             # 신경망 모델 정의 및 학습/추론 로직
 │   ├── network.go
 │   └── activations.go
 ├── utils/              # MNIST 파일 파싱 및 이미지 처리 유틸리티
 │   └── loader.go
 ├── main.go             # 학습 실행 및 모델 저장 (Training Mode)
-└── server.go           # 웹 서버 및 추론 API (Inference Mode)
+├── server.go           # 웹 서버 및 추론 API (Inference Mode)
+└── setup.sh            # [NEW] 데이터 다운로드설정 스크립트
 ```
 
 > **참고:** IDX 파일 형식은 MNIST 데이터셋의 전용 바이너리 포맷입니다. 자세한 사양은 [http://yann.lecun.com/exdb/mnist/](http://yann.lecun.com/exdb/mnist/)에서 확인할 수 있습니다.
@@ -32,11 +34,13 @@ go-mnist-scratch/
 - 행렬 덧셈/뺄셈 (`Add`, `Subtract`)
 - 요소별 연산 (`Apply` - 활성화 함수 적용용)
 - 전치 행렬 (`Transpose`)
+- **Unit Test (`matrix_test.go`):** 각 연산이 정확한지 검증하는 테스트 코드 작성 필수.
 
 ### Phase 2: MNIST 데이터 로더 (utils 패키지)
 MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go의 구조체로 변환해야 합니다.
 
 **구현 내용:**
+- `setup.sh`: `curl`을 사용하여 Yann LeCun 교수님의 웹사이트나 미러 사이트에서 데이터셋 자동 다운로드.
 - `encoding/binary` 패키지를 사용하여 헤더(Magic number, 개수, 행, 열) 파싱.
 - 이미지 데이터를 `[]float64` (0.0~1.0 정규화)로 변환.
 - 레이블 데이터를 One-hot encoding 벡터로 변환.
@@ -50,7 +54,10 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 - **Output Layer:** 10 노드 (숫자 0~9)
 
 **수학적 로직:**
-- **활성화 함수:** Sigmoid (구현이 쉬움) 또는 ReLU (성능이 좋음). 여기선 Sigmoid 추천 (미분이 간단함).
+- **활성화 함수:**
+  - Hidden Layer: Sigmoid 또는 ReLU.
+  - Output Layer: **Softmax** (다중 분류 확률 계산).
+- **손실 함수:** **Cross-Entropy Loss** (Softmax와 결합 시 학습 효율 좋음).
 - **가중치 초기화:** 랜덤 초기화 (Xavier/He initialization 권장).
 - **Forward Propagation (추론용):** Input * W1 -> Sigmoid -> * W2 -> Sigmoid -> Output
 - **Backpropagation (학습용):** 오차 역전파를 통한 가중치 업데이트 (Gradient Descent).
@@ -81,6 +88,13 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 - HTML/JS 프론트엔드: 사용자가 마우스로 숫자를 그리면 28x28 배열로 변환해 서버로 전송.
 - 서버는 결과를 JSON으로 응답.
 
+### Phase 6: 심화 최적화 (Optimization - Bonus)
+Go 언어의 장점을 살려 성능을 극한으로 끌어올려 봅니다.
+
+**도전 과제:**
+- **Goroutine 병렬화:** `DosProduct` 연산이나 배치 학습(`Batch Training`) 시 Goroutine을 활용하여 연산 속도 가속.
+- **메모리 최적화:** 불필요한 슬라이스 할당을 줄이고 메모리 재사용 기법 적용.
+
 ## 3. 코딩 에이전트용 프롬프트 (Copy & Paste)
 이 플랜을 바탕으로 코딩 에이전트(예: Cursor, Github Copilot 등)에게 작업을 시킬 때 사용할 수 있는 구체적인 프롬프트입니다. 아래 내용을 복사해서 사용하세요.
 
@@ -104,13 +118,17 @@ MNIST는 특이한 바이너리 포맷(IDX format)을 사용합니다. 이를 Go
 - **Batch Size:** 64
 
 **Components:**
-- `utils/loader.go`: MNIST IDX 바이너리 파일을 읽어서 파싱하는 로직.
-- `neural/network.go`: `Train()`(역전파 포함)과 `Predict()`(순전파) 메서드를 가진 Network 구조체.
+- `matrix/matrix_test.go`: 행렬 연산의 정확성을 보장하는 유닛 테스트 필수 포함.
+- `utils/loader.go`: MNIST IDX 바이너리 파일을 읽어서 파싱하는 로직. `setup.sh` 스크립트로 데이터 다운로드 자동화.
+- `neural/network.go`: `Train()`(역전파 포함)과 `Predict()`(순전파) 메서드를 가진 Network 구조체. (Output Layer는 Softmax, Loss는 Cross-Entropy 권장)
 - **Model Persistence:** 학습된 가중치(Weights)를 JSON 파일로 저장하고, 다시 불러올 수 있는 기능 필수.
 
 **Application:**
 - `main.go`: 데이터를 학습시키고 모델을 파일로 저장하는 CLI 툴.
 - `server.go`: 저장된 모델을 로드하여, HTTP 요청으로 들어온 이미지 데이터를 추론하는 초경량 웹 서버.
+
+**Optimization (Bonus):**
+- 행렬 연산이나 배치 처리에 **Goroutine**을 사용하여 병렬 처리 성능 최적화 도전.
 
 **Goal:** CPU에서 매우 빠르고 가볍게 돌아가는 것이 핵심 목표임. 코드는 모듈화가 잘 되어 있어야 하며, 각 함수에는 주석을 달아줘.
 
