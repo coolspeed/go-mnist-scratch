@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MNIST Digit Recognizer</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; margin-top: 20px; }
+        canvas { border: 2px solid black; cursor: crosshair; }
+        .controls button { margin: 10px 5px; padding: 10px 20px; font-size: 16px; }
+        .result { margin-top: 20px; font-size: 24px; font-weight: bold; }
+        .pixel-grid { display: grid; border: 1px solid #ccc; width: 280px; height: 280px; margin-top: 20px; }
+        .pixel { width: 10px; height: 10px; background-color: #eee; }
+        .pixel.active { background-color: black; }
+    </style>
+</head>
+<body>
+    <h1>Draw a Digit (0-9)</h1>
+    <canvas id="canvas" width="280" height="280"></canvas>
+    <div class="controls">
+        <button id="predictButton">Predict</button>
+        <button id="clearButton">Clear</button>
+    </div>
+    <div class="result">Prediction: <span id="predictionResult">_</span></div>
+    <div class="pixel-grid" id="pixelGrid"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>

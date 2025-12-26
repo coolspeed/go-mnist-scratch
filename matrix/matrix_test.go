@@ -1,325 +1,186 @@
 package matrix
 
 import (
+	"math"
 	"testing"
 )
 
 func TestNewMatrix(t *testing.T) {
-	tests := []struct {
-		name    string
-		rows    int
-		cols    int
-		wantErr bool
-	}{
-		{
-			name:    "valid 2x3 matrix",
-			rows:    2,
-			cols:    3,
-			wantErr: false,
-		},
-		{
-			name:    "zero rows",
-			rows:    0,
-			cols:    3,
-			wantErr: true,
-		},
-		{
-			name:    "zero cols",
-			rows:    2,
-			cols:    0,
-			wantErr: true,
-		},
-		{
-			name:    "negative rows",
-			rows:    -1,
-			cols:    3,
-			wantErr: true,
-		},
-		{
-			name:    "negative cols",
-			rows:    2,
-			cols:    -1,
-			wantErr: true,
-		},
+	rows, cols := 3, 4
+	m := NewMatrix(rows, cols)
+
+	if len(m) != rows {
+		t.Errorf("Expected %d rows, got %d", rows, len(m))
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m, err := NewMatrix(tt.rows, tt.cols)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("NewMatrix() expected error but got none")
-				}
-				return
-			}
-			if err != nil {
-				t.Errorf("NewMatrix() unexpected error: %v", err)
-				return
-			}
-			if m.Rows != tt.rows {
-				t.Errorf("NewMatrix() Rows = %v, want %v", m.Rows, tt.rows)
-			}
-			if m.Cols != tt.cols {
-				t.Errorf("NewMatrix() Cols = %v, want %v", m.Cols, tt.cols)
-			}
-			if len(m.Data) != tt.rows {
-				t.Errorf("NewMatrix() Data length = %v, want %v", len(m.Data), tt.rows)
-			}
-		})
-	}
-}
-
-func TestAdd(t *testing.T) {
-	m1, _ := NewMatrix(2, 2)
-	m1.Data[0][0] = 1
-	m1.Data[0][1] = 2
-	m1.Data[1][0] = 3
-	m1.Data[1][1] = 4
-
-	m2, _ := NewMatrix(2, 2)
-	m2.Data[0][0] = 5
-	m2.Data[0][1] = 6
-	m2.Data[1][0] = 7
-	m2.Data[1][1] = 8
-
-	tests := []struct {
-		name    string
-		m1      *Matrix
-		m2      *Matrix
-		wantErr bool
-		want    [][]float64
-	}{
-		{
-			name:    "valid addition",
-			m1:      m1,
-			m2:      m2,
-			wantErr: false,
-			want:    [][]float64{{6, 8}, {10, 12}},
-		},
-		{
-			name:    "different dimensions",
-			m1:      m1,
-			m2:      func() *Matrix { m, _ := NewMatrix(2, 3); return m }(),
-			wantErr: true,
-			want:    nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := Add(tt.m1, tt.m2)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("Add() expected error but got none")
-				}
-				return
-			}
-			if err != nil {
-				t.Errorf("Add() unexpected error: %v", err)
-				return
-			}
-			for i := range tt.want {
-				for j := range tt.want[i] {
-					if result.Data[i][j] != tt.want[i][j] {
-						t.Errorf("Add() Data[%d][%d] = %v, want %v", i, j, result.Data[i][j], tt.want[i][j])
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestSubtract(t *testing.T) {
-	m1, _ := NewMatrix(2, 2)
-	m1.Data[0][0] = 5
-	m1.Data[0][1] = 6
-	m1.Data[1][0] = 7
-	m1.Data[1][1] = 8
-
-	m2, _ := NewMatrix(2, 2)
-	m2.Data[0][0] = 1
-	m2.Data[0][1] = 2
-	m2.Data[1][0] = 3
-	m2.Data[1][1] = 4
-
-	tests := []struct {
-		name    string
-		m1      *Matrix
-		m2      *Matrix
-		wantErr bool
-		want    [][]float64
-	}{
-		{
-			name:    "valid subtraction",
-			m1:      m1,
-			m2:      m2,
-			wantErr: false,
-			want:    [][]float64{{4, 4}, {4, 4}},
-		},
-		{
-			name:    "different dimensions",
-			m1:      m1,
-			m2:      func() *Matrix { m, _ := NewMatrix(2, 3); return m }(),
-			wantErr: true,
-			want:    nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := Subtract(tt.m1, tt.m2)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("Subtract() expected error but got none")
-				}
-				return
-			}
-			if err != nil {
-				t.Errorf("Subtract() unexpected error: %v", err)
-				return
-			}
-			for i := range tt.want {
-				for j := range tt.want[i] {
-					if result.Data[i][j] != tt.want[i][j] {
-						t.Errorf("Subtract() Data[%d][%d] = %v, want %v", i, j, result.Data[i][j], tt.want[i][j])
-					}
-				}
-			}
-		})
-	}
-}
-
-func TestApply(t *testing.T) {
-	m, _ := NewMatrix(2, 2)
-	m.Data[0][0] = 1
-	m.Data[0][1] = 2
-	m.Data[1][0] = 3
-	m.Data[1][1] = 4
-
-	fn := func(x float64) float64 { return x * 2 }
-	result := Apply(m, fn)
-	want := [][]float64{{2, 4}, {6, 8}}
-
-	for i := range want {
-		for j := range want[i] {
-			if result.Data[i][j] != want[i][j] {
-				t.Errorf("Apply() Data[%d][%d] = %v, want %v", i, j, result.Data[i][j], want[i][j])
-			}
+	for i := 0; i < rows; i++ {
+		if len(m[i]) != cols {
+			t.Errorf("Row %d: Expected %d columns, got %d", i, cols, len(m[i]))
 		}
-	}
-}
-
-func TestTranspose(t *testing.T) {
-	m, _ := NewMatrix(2, 3)
-	m.Data[0][0] = 1
-	m.Data[0][1] = 2
-	m.Data[0][2] = 3
-	m.Data[1][0] = 4
-	m.Data[1][1] = 5
-	m.Data[1][2] = 6
-
-	result := Transpose(m)
-
-	if result.Rows != 3 {
-		t.Errorf("Transpose() Rows = %v, want 3", result.Rows)
-	}
-	if result.Cols != 2 {
-		t.Errorf("Transpose() Cols = %v, want 2", result.Cols)
-	}
-
-	want := [][]float64{{1, 4}, {2, 5}, {3, 6}}
-	for i := range want {
-		for j := range want[i] {
-			if result.Data[i][j] != want[i][j] {
-				t.Errorf("Transpose() Data[%d][%d] = %v, want %v", i, j, result.Data[i][j], want[i][j])
+		for j := 0; j < cols; j++ {
+			if m[i][j] != 0.0 {
+				t.Errorf("New matrix element at (%d, %d) should be 0.0, got %f", i, j, m[i][j])
 			}
 		}
 	}
 }
 
 func TestDotProduct(t *testing.T) {
-	tests := []struct {
-		name    string
-		m1      *Matrix
-		m2      *Matrix
-		wantErr bool
-		want    [][]float64
-	}{
-		{
-			name: "2x3 times 3x2",
-			m1: func() *Matrix {
-				m, _ := NewMatrix(2, 3)
-				m.Data[0][0] = 1
-				m.Data[0][1] = 2
-				m.Data[0][2] = 3
-				m.Data[1][0] = 4
-				m.Data[1][1] = 5
-				m.Data[1][2] = 6
-				return m
-			}(),
-			m2: func() *Matrix {
-				m, _ := NewMatrix(3, 2)
-				m.Data[0][0] = 7
-				m.Data[0][1] = 8
-				m.Data[1][0] = 9
-				m.Data[1][1] = 10
-				m.Data[2][0] = 11
-				m.Data[2][1] = 12
-				return m
-			}(),
-			wantErr: false,
-			want:    [][]float64{{58, 64}, {139, 154}},
-		},
-		{
-			name: "incompatible dimensions",
-			m1: func() *Matrix {
-				m, _ := NewMatrix(2, 3)
-				return m
-			}(),
-			m2: func() *Matrix {
-				m, _ := NewMatrix(2, 2)
-				return m
-			}(),
-			wantErr: true,
-			want:    nil,
-		},
-		{
-			name: "1x1 times 1x1",
-			m1: func() *Matrix {
-				m, _ := NewMatrix(1, 1)
-				m.Data[0][0] = 3
-				return m
-			}(),
-			m2: func() *Matrix {
-				m, _ := NewMatrix(1, 1)
-				m.Data[0][0] = 4
-				return m
-			}(),
-			wantErr: false,
-			want:    [][]float64{{12}},
-		},
+	// Test case 1: Valid multiplication
+	a := Matrix{{1, 2}, {3, 4}}
+	b := Matrix{{5, 6}, {7, 8}}
+	expected := Matrix{{19, 22}, {43, 50}}
+	result, err := a.DotProduct(b)
+
+	if err != nil {
+		t.Errorf("DotProduct returned an unexpected error: %v", err)
+	}
+	if !equalMatrices(result, expected) {
+		t.Errorf("DotProduct result mismatch.\nExpected: %v\nGot: %v", expected, result)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := DotProduct(tt.m1, tt.m2)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("DotProduct() expected error but got none")
-				}
-				return
-			}
-			if err != nil {
-				t.Errorf("DotProduct() unexpected error: %v", err)
-				return
-			}
-			for i := range tt.want {
-				for j := range tt.want[i] {
-					if result.Data[i][j] != tt.want[i][j] {
-						t.Errorf("DotProduct() Data[%d][%d] = %v, want %v", i, j, result.Data[i][j], tt.want[i][j])
-					}
-				}
-			}
-		})
+	// Test case 2: Incompatible dimensions
+	c := Matrix{{1, 2, 3}}
+	d := Matrix{{4}, {5}} // This should be 2x1 to be incompatible with 1x3, so it's 1x3 and 2x1 -> error
+	_, err = c.DotProduct(d)
+	if err == nil {
+		t.Error("DotProduct should return an error for incompatible dimensions, but didn't")
 	}
+	
+	// Test case 3: 1x1 matrices
+	e := Matrix{{2}}
+	f := Matrix{{3}}
+	expectedEF := Matrix{{6}}
+	resultEF, err := e.DotProduct(f)
+	if err != nil {
+		t.Errorf("DotProduct for 1x1 matrices returned an unexpected error: %v", err)
+	}
+	if !equalMatrices(resultEF, expectedEF) {
+		t.Errorf("DotProduct 1x1 result mismatch.\nExpected: %v\nGot: %v", expectedEF, resultEF)
+	}
+
+	// Test case 4: Matrix * Vector (represented as a matrix)
+	g := Matrix{{1, 2, 3}, {4, 5, 6}} // 2x3
+	h := Matrix{{7}, {8}, {9}}       // 3x1
+	expectedGH := Matrix{{50}, {122}} // 2x1
+	resultGH, err := g.DotProduct(h)
+	if err != nil {
+		t.Errorf("DotProduct for matrix * vector returned an unexpected error: %v", err)
+	}
+	if !equalMatrices(resultGH, expectedGH) {
+		t.Errorf("DotProduct matrix * vector result mismatch.\nExpected: %v\nGot: %v", expectedGH, resultGH)
+	}
+}
+
+func TestAdd(t *testing.T) {
+	// Test case 1: Valid addition
+	a := Matrix{{1, 2}, {3, 4}}
+	b := Matrix{{5, 6}, {7, 8}}
+	expected := Matrix{{6, 8}, {10, 12}}
+	result, err := a.Add(b)
+
+	if err != nil {
+		t.Errorf("Add returned an unexpected error: %v", err)
+	}
+	if !equalMatrices(result, expected) {
+		t.Errorf("Add result mismatch.\nExpected: %v\nGot: %v", expected, result)
+	}
+
+	// Test case 2: Incompatible dimensions
+	c := Matrix{{1, 2, 3}}
+	d := Matrix{{4, 5}}
+	_, err = c.Add(d)
+	if err == nil {
+		t.Error("Add should return an error for incompatible dimensions, but didn't")
+	}
+}
+
+func TestSubtract(t *testing.T) {
+	// Test case 1: Valid subtraction
+	a := Matrix{{5, 6}, {7, 8}}
+	b := Matrix{{1, 2}, {3, 4}}
+	expected := Matrix{{4, 4}, {4, 4}}
+	result, err := a.Subtract(b)
+
+	if err != nil {
+		t.Errorf("Subtract returned an unexpected error: %v", err)
+	}
+	if !equalMatrices(result, expected) {
+		t.Errorf("Subtract result mismatch.\nExpected: %v\nGot: %v", expected, result)
+	}
+
+	// Test case 2: Incompatible dimensions
+	c := Matrix{{1, 2, 3}}
+	d := Matrix{{4, 5}}
+	_, err = c.Subtract(d)
+	if err == nil {
+		t.Error("Subtract should return an error for incompatible dimensions, but didn't")
+	}
+}
+
+func TestApply(t *testing.T) {
+	m := Matrix{{1, 2}, {3, 4}}
+	fn := func(x float64) float64 {
+		return x * x
+	}
+	expected := Matrix{{1, 4}, {9, 16}}
+	result := m.Apply(fn)
+
+	if !equalMatrices(result, expected) {
+		t.Errorf("Apply result mismatch.\nExpected: %v\nGot: %v", expected, result)
+	}
+}
+
+func TestTranspose(t *testing.T) {
+	m := Matrix{{1, 2, 3}, {4, 5, 6}}
+	expected := Matrix{{1, 4}, {2, 5}, {3, 6}}
+	result := m.Transpose()
+
+	if !equalMatrices(result, expected) {
+		t.Errorf("Transpose result mismatch.\nExpected: %v\nGot: %v", expected, result)
+	}
+
+	// Test case for a square matrix
+	squareMatrix := Matrix{{1, 2}, {3, 4}}
+	expectedSquare := Matrix{{1, 3}, {2, 4}}
+	resultSquare := squareMatrix.Transpose()
+	if !equalMatrices(resultSquare, expectedSquare) {
+		t.Errorf("Transpose square matrix result mismatch.\nExpected: %v\nGot: %v", expectedSquare, resultSquare)
+	}
+
+	// Test case for a 1x1 matrix
+	oneByOne := Matrix{{7}}
+	expectedOneByOne := Matrix{{7}}
+	resultOneByOne := oneByOne.Transpose()
+	if !equalMatrices(resultOneByOne, expectedOneByOne) {
+		t.Errorf("Transpose 1x1 matrix result mismatch.\nExpected: %v\nGot: %v", expectedOneByOne, resultOneByOne)
+	}
+
+	// Test case for empty matrix
+	emptyMatrix := NewMatrix(0,0)
+	expectedEmpty := NewMatrix(0,0)
+	resultEmpty := emptyMatrix.Transpose()
+	if !equalMatrices(resultEmpty, expectedEmpty) {
+		t.Errorf("Transpose empty matrix result mismatch.\nExpected: %v\nGot: %v", expectedEmpty, resultEmpty)
+	}
+}
+
+// Helper function to compare two matrices for equality with a small tolerance for float comparisons
+func equalMatrices(m1, m2 Matrix) bool {
+	if len(m1) != len(m2) {
+		return false
+	}
+	if len(m1) > 0 && len(m1[0]) != len(m2[0]) { // Check column length only if there are rows
+		return false
+	}
+	for i := range m1 {
+		if len(m1[i]) != len(m2[i]) {
+			return false
+		}
+		for j := range m1[i] {
+			if math.Abs(m1[i][j]-m2[i][j]) > 1e-9 { // Use a small epsilon for float comparison
+				return false
+			}
+		}
+	}
+	return true
 }

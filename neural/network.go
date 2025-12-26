@@ -8,229 +8,322 @@ import (
 	"time"
 
 	"github.com/coolspeed/go-mnist-scratch/matrix"
-	"github.com/coolspeed/go-mnist-scratch/utils"
 )
 
+// Network represents a neural network
 type Network struct {
-	W1 *matrix.Matrix
-	B1 *matrix.Matrix
-	W2 *matrix.Matrix
-	B2 *matrix.Matrix
+	// Weights and biases for hidden layer
+	W1 matrix.Matrix
+	B1 matrix.Matrix
+	// Weights and biases for output layer
+	W2 matrix.Matrix
+	B2 matrix.Matrix
+
+	// Learning rate
+	LearningRate float64
 }
 
-func NewNetwork(inputSize, hiddenSize, outputSize int) *Network {
+// NewNetwork creates and initializes a new neural network
+func NewNetwork(inputSize, hiddenSize, outputSize int, learningRate float64) *Network {
 	rand.Seed(time.Now().UnixNano())
 
-	W1, _ := matrix.NewMatrix(inputSize, hiddenSize)
-	B1, _ := matrix.NewMatrix(1, hiddenSize)
-	W2, _ := matrix.NewMatrix(hiddenSize, outputSize)
-	B2, _ := matrix.NewMatrix(1, outputSize)
+	net := &Network{
+		LearningRate: learningRate,
+	}
 
+	// Initialize weights and biases
+	// W1: inputSize x hiddenSize
+	net.W1 = matrix.NewMatrix(inputSize, hiddenSize)
+	// B1: 1 x hiddenSize
+	net.B1 = matrix.NewMatrix(1, hiddenSize)
+	// W2: hiddenSize x outputSize
+	net.W2 = matrix.NewMatrix(hiddenSize, outputSize)
+	// B2: 1 x outputSize
+	net.B2 = matrix.NewMatrix(1, outputSize)
+
+	// He initialization for weights (suitable for ReLU, often used with others too)
+	// For sigmoid, Xavier might be more appropriate, but given the prompt, this is a reasonable start.
+	stdDev1 := math.Sqrt(2.0 / float64(inputSize))
 	for i := 0; i < inputSize; i++ {
 		for j := 0; j < hiddenSize; j++ {
-			W1.Data[i][j] = rand.NormFloat64() * math.Sqrt(2.0/float64(inputSize))
+			net.W1[i][j] = rand.NormFloat64() * stdDev1
 		}
 	}
+	// Biases initialized to zero
+	// for i := 0; i < hiddenSize; i++ {
+	// 	net.B1[0][i] = 0.0
+	// }
 
+	stdDev2 := math.Sqrt(2.0 / float64(hiddenSize))
 	for i := 0; i < hiddenSize; i++ {
 		for j := 0; j < outputSize; j++ {
-			W2.Data[i][j] = rand.NormFloat64() * math.Sqrt(2.0/float64(hiddenSize))
+			net.W2[i][j] = rand.NormFloat64() * stdDev2
 		}
 	}
+	// Biases initialized to zero
+	// for i := 0; i < outputSize; i++ {
+	// 	net.B2[0][i] = 0.0
+	// }
 
-	return &Network{
-		W1: W1,
-		B1: B1,
-		W2: W2,
-		B2: B2,
-	}
+	return net
 }
 
-func (n *Network) Forward(input *matrix.Matrix) (*matrix.Matrix, *matrix.Matrix, *matrix.Matrix) {
-	z1, _ := matrix.DotProduct(input, n.W1)
-	z1, _ = matrix.Add(z1, n.B1)
-	a1 := matrix.Apply(z1, utils.Sigmoid)
+// Forward performs the forward pass through the network
+// Returns:
+//   - a1: Activated output of the hidden layer
+//   - a2: Activated output of the output layer (Softmax probabilities)
+//   - z1: Weighted sum + bias of hidden layer (before activation)
+//   - z2: Weighted sum + bias of output layer (before activation)
+func (net *Network) Forward(input matrix.Matrix) (a1, a2, z1, z2 matrix.Matrix, err error) {
+	// Layer 1 (Hidden Layer)
+	z1, err = input.DotProduct(net.W1)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("forward pass error (input.DotProduct(W1)): %w", err)
+	}
+	z1, err = z1.Add(net.B1)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("forward pass error (z1.Add(B1)): %w", err)
+	}
+	a1 = z1.Apply(Sigmoid) // Apply Sigmoid activation
 
-	z2, _ := matrix.DotProduct(a1, n.W2)
-	z2, _ = matrix.Add(z2, n.B2)
-	a2 := matrix.Apply(z2, func(x float64) float64 { return x })
+	// Layer 2 (Output Layer)
+	z2, err = a1.DotProduct(net.W2)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("forward pass error (a1.DotProduct(W2)): %w", err)
+	}
+	z2, err = z2.Add(net.B2)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("forward pass error (z2.Add(B2)): %w", err)
+	}
+	// Apply Softmax activation. Softmax operates on a 1D slice of inputs.
+	// Assuming z2 is a 1xN matrix, we need to extract its first row.
+	if len(z2) == 0 || len(z2[0]) == 0 {
+		return nil, nil, nil, nil, fmt.Errorf("z2 matrix is empty, cannot apply Softmax")
+	}
+	softmaxInputs := z2[0]
+	softmaxOutputs := Softmax(softmaxInputs)
 
-	softmaxOutput := utils.Softmax(a2.Data[0])
+	// Convert softmaxOutputs back to a 1xN matrix
+	a2 = matrix.NewMatrix(1, len(softmaxOutputs))
+	a2[0] = softmaxOutputs
 
-	result, _ := matrix.NewMatrix(1, len(softmaxOutput))
-	result.Data[0] = softmaxOutput
-
-	return a1, result, z1
+	return a1, a2, z1, z2, nil
 }
 
-func (n *Network) Backward(input *matrix.Matrix, a1 *matrix.Matrix, output *matrix.Matrix, z1 *matrix.Matrix, target *matrix.Matrix, learningRate float64) {
-	outputError, _ := matrix.Subtract(target, output)
+// Predict performs a forward pass and returns the predicted digit (0-9)
+func (net *Network) Predict(input matrix.Matrix) (int, error) {
+	_, a2, _, _, err := net.Forward(input)
+	if err != nil {
+		return -1, fmt.Errorf("prediction error: %w", err)
+	}
 
-	dW2, _ := matrix.DotProduct(matrix.Transpose(a1), outputError)
+	maxVal := -1.0
+	prediction := -1
 
-	sumError := make([]float64, len(outputError.Data[0]))
-	for j := range outputError.Data[0] {
-		for i := range outputError.Data {
-			sumError[j] += outputError.Data[i][j]
+	// Assuming a2 is a 1xN matrix of probabilities
+	if len(a2) == 0 || len(a2[0]) == 0 {
+		return -1, fmt.Errorf("output layer is empty")
+	}
+
+	for i, val := range a2[0] {
+		if val > maxVal {
+			maxVal = val
+			prediction = i
 		}
 	}
-
-	dB2, _ := matrix.NewMatrix(1, len(sumError))
-	dB2.Data[0] = sumError
-
-	hiddenError, _ := matrix.DotProduct(outputError, matrix.Transpose(n.W2))
-
-	sigDeriv := matrix.Apply(z1, utils.SigmoidDerivative)
-	for i := range hiddenError.Data {
-		for j := range hiddenError.Data[i] {
-			hiddenError.Data[i][j] *= sigDeriv.Data[i][j]
-		}
-	}
-
-	dW1, _ := matrix.DotProduct(matrix.Transpose(input), hiddenError)
-
-	sumHiddenError := make([]float64, len(hiddenError.Data[0]))
-	for j := range hiddenError.Data[0] {
-		for i := range hiddenError.Data {
-			sumHiddenError[j] += hiddenError.Data[i][j]
-		}
-	}
-
-	dB1, _ := matrix.NewMatrix(1, len(sumHiddenError))
-	dB1.Data[0] = sumHiddenError
-
-	for i := 0; i < dW1.Rows; i++ {
-		for j := 0; j < dW1.Cols; j++ {
-			n.W1.Data[i][j] += dW1.Data[i][j] * learningRate
-		}
-	}
-
-	for i := 0; i < dB1.Cols; i++ {
-		n.B1.Data[0][i] += dB1.Data[0][i] * learningRate
-	}
-
-	for i := 0; i < dW2.Rows; i++ {
-		for j := 0; j < dW2.Cols; j++ {
-			n.W2.Data[i][j] += dW2.Data[i][j] * learningRate
-		}
-	}
-
-	for i := 0; i < dB2.Cols; i++ {
-		n.B2.Data[0][i] += dB2.Data[0][i] * learningRate
-	}
+	return prediction, nil
 }
 
-func (n *Network) Train(images []float64, labels []float64, epochs int, batchSize int, learningRate float64) {
-	input, _ := matrix.NewMatrix(1, len(images))
-	input.Data[0] = images
 
-	target, _ := matrix.NewMatrix(1, len(labels))
-	target.Data[0] = labels
 
-	a1, output, z1 := n.Forward(input)
 
-	correct := 0
-	for i := range output.Data[0] {
-		if (output.Data[0][i] > 0.5 && labels[i] == 1.0) || (output.Data[0][i] <= 0.5 && labels[i] == 0.0) {
-			correct++
-		}
-	}
-	n.Backward(input, a1, output, z1, target, learningRate)
-}
-
-func (n *Network) Predict(images []float64) int {
-	input, _ := matrix.NewMatrix(1, len(images))
-	input.Data[0] = images
-
-	_, output, _ := n.Forward(input)
-
-	maxIdx := 0
-	maxVal := output.Data[0][0]
-	for i := 1; i < len(output.Data[0]); i++ {
-		if output.Data[0][i] > maxVal {
-			maxVal = output.Data[0][i]
-			maxIdx = i
-		}
+// Train trains the neural network using backpropagation
+// This is a placeholder and will need full implementation for backpropagation.
+func (net *Network) Train(input, target matrix.Matrix) error {
+	// Forward pass
+	a1, output, z1, _, err := net.Forward(input)
+	if err != nil {
+		return fmt.Errorf("training forward pass failed: %w", err)
 	}
 
-	return maxIdx
+	// Backpropagation
+	// Output Layer Error (delta2)
+	// For Softmax with Cross-Entropy Loss, delta2 = output - target
+	delta2, err := output.Subtract(target)
+	if err != nil {
+		return fmt.Errorf("training output error calculation failed: %w", err)
+	}
+
+	// Update W2 and B2
+	// dW2 = a1_T . delta2
+	a1T := a1.Transpose()
+	dW2, err := a1T.DotProduct(delta2)
+	if err != nil {
+		return fmt.Errorf("training dW2 calculation failed: %w", err)
+	}
+	
+	// dB2 is simply sum of delta2 rows, assuming delta2 is 1xN
+	// If batch training, sum of deltas for the batch
+	// For a single sample (1xN matrix), dB2 = delta2
+	dB2 := delta2
+
+	// Hidden Layer Error (delta1)
+	// delta1 = (delta2 . W2_T) * sigmoid_prime(z1)
+	w2T := net.W2.Transpose()
+	delta1Intermediate, err := delta2.DotProduct(w2T)
+	if err != nil {
+		return fmt.Errorf("training delta1 intermediate calculation failed: %w", err)
+	}
+	
+z1SigmoidPrime := z1.Apply(SigmoidPrime) // Derivative of sigmoid applied to z1
+	
+	delta1, err := delta1Intermediate.MultiplyElementWise(z1SigmoidPrime) // Custom element-wise multiplication
+	if err != nil {
+		return fmt.Errorf("training delta1 calculation failed: %w", err)
+	}
+
+	// Update W1 and B1
+	// dW1 = input_T . delta1
+	inputT := input.Transpose()
+	dW1, err := inputT.DotProduct(delta1)
+	if err != nil {
+		return fmt.Errorf("training dW1 calculation failed: %w", err)
+	}
+	// dB1 = delta1 (for single sample)
+	dB1 := delta1
+
+	// Apply gradient descent updates
+	// W2 = W2 - LearningRate * dW2
+	scaled_dW2 := dW2.ScalarMultiply(net.LearningRate) // Implement ScalarMultiply
+	net.W2, err = net.W2.Subtract(scaled_dW2)
+	if err != nil {
+		return fmt.Errorf("training W2 update failed: %w", err)
+	}
+
+	scaled_dB2 := dB2.ScalarMultiply(net.LearningRate)
+	net.B2, err = net.B2.Subtract(scaled_dB2)
+	if err != nil {
+		return fmt.Errorf("training B2 update failed: %w", err)
+	}
+
+	// W1 = W1 - LearningRate * dW1
+	scaled_dW1 := dW1.ScalarMultiply(net.LearningRate)
+	net.W1, err = net.W1.Subtract(scaled_dW1)
+	if err != nil {
+		return fmt.Errorf("training W1 update failed: %w", err)
+	}
+
+	scaled_dB1 := dB1.ScalarMultiply(net.LearningRate)
+	net.B1, err = net.B1.Subtract(scaled_dB1)
+	if err != nil {
+		return fmt.Errorf("training B1 update failed: %w", err)
+	}
+
+	return nil
 }
 
-func (n *Network) SaveModel(filename string) error {
+
+
+
+// SaveModel saves the network's weights and biases to a file.
+// This is a simple text-based save. For production, consider JSON/Gob.
+func (net *Network) SaveModel(filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	fmt.Fprintf(file, "%d %d\n", n.W1.Rows, n.W1.Cols)
-	for i := 0; i < n.W1.Rows; i++ {
-		for j := 0; j < n.W1.Cols; j++ {
-			fmt.Fprintf(file, "%f ", n.W1.Data[i][j])
+	// Helper to write a matrix
+	writeMatrix := func(m matrix.Matrix) error {
+		_, err := fmt.Fprintf(file, "%d %d\n", len(m), len(m[0]))
+		if err != nil {
+			return err
 		}
-	}
-
-	fmt.Fprintf(file, "\n%d\n", n.B1.Cols)
-	for j := 0; j < n.B1.Cols; j++ {
-		fmt.Fprintf(file, "%f ", n.B1.Data[0][j])
-	}
-
-	fmt.Fprintf(file, "\n%d %d\n", n.W2.Rows, n.W2.Cols)
-	for i := 0; i < n.W2.Rows; i++ {
-		for j := 0; j < n.W2.Cols; j++ {
-			fmt.Fprintf(file, "%f ", n.W2.Data[i][j])
+		for i := range m {
+			for j := range m[i] {
+				_, err = fmt.Fprintf(file, "%f ", m[i][j])
+				if err != nil {
+					return err
+				}
+			}
+			_, err = fmt.Fprintln(file) // Newline after each row
+			if err != nil {
+				return err
+			}
 		}
+		return nil
 	}
 
-	fmt.Fprintf(file, "\n%d\n", n.B2.Cols)
-	for j := 0; j < n.B2.Cols; j++ {
-		fmt.Fprintf(file, "%f ", n.B2.Data[0][j])
+	fmt.Fprintln(file, "W1")
+	if err := writeMatrix(net.W1); err != nil {
+		return fmt.Errorf("failed to write W1: %w", err)
+	}
+	fmt.Fprintln(file, "B1")
+	if err := writeMatrix(net.B1); err != nil {
+		return fmt.Errorf("failed to write B1: %w", err)
+	}
+	fmt.Fprintln(file, "W2")
+	if err := writeMatrix(net.W2); err != nil {
+		return fmt.Errorf("failed to write W2: %w", err)
+	}
+	fmt.Fprintln(file, "B2")
+	if err := writeMatrix(net.B2); err != nil {
+		return fmt.Errorf("failed to write B2: %w", err)
 	}
 
 	return nil
 }
 
-func (n *Network) LoadModel(filename string) error {
+// LoadModel loads the network's weights and biases from a file.
+func (net *Network) LoadModel(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	var rows, cols int
-	fmt.Fscanf(file, "%d %d\n", &rows, &cols)
-
-	W1, _ := matrix.NewMatrix(rows, cols)
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			fmt.Fscanf(file, "%f", &W1.Data[i][j])
+	// Helper to read a matrix
+	readMatrix := func() (matrix.Matrix, error) {
+		var rows, cols int
+		_, err := fmt.Fscanf(file, "%d %d\n", &rows, &cols)
+		if err != nil {
+			return nil, err
 		}
-	}
-
-	fmt.Fscanf(file, "\n%d\n", &cols)
-	B1, _ := matrix.NewMatrix(1, cols)
-	for j := 0; j < cols; j++ {
-		fmt.Fscanf(file, "%f", &B1.Data[0][j])
-	}
-
-	fmt.Fscanf(file, "\n%d %d\n", &rows, &cols)
-	W2, _ := matrix.NewMatrix(rows, cols)
-	for i := 0; i < rows; i++ {
-		for j := 0; j < cols; j++ {
-			fmt.Fscanf(file, "%f", &W2.Data[i][j])
+		m := matrix.NewMatrix(rows, cols)
+		for i := 0; i < rows; i++ {
+			for j := 0; j < cols; j++ {
+				_, err = fmt.Fscanf(file, "%f", &m[i][j])
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
+		return m, nil
 	}
 
-	fmt.Fscanf(file, "\n%d\n", &cols)
-	B2, _ := matrix.NewMatrix(1, cols)
-	for j := 0; j < cols; j++ {
-		fmt.Fscanf(file, "%f", &B2.Data[0][j])
-	}
+	var header string
 
-	n.W1 = W1
-	n.B1 = B1
-	n.W2 = W2
-	n.B2 = B2
+	fmt.Fscanln(file, &header) // Read "W1"
+	net.W1, err = readMatrix()
+	if err != nil {
+		return fmt.Errorf("failed to read W1: %w", err)
+	}
+	fmt.Fscanln(file, &header) // Read "B1"
+	net.B1, err = readMatrix()
+	if err != nil {
+		return fmt.Errorf("failed to read B1: %w", err)
+	}
+	fmt.Fscanln(file, &header) // Read "W2"
+	net.W2, err = readMatrix()
+	if err != nil {
+		return fmt.Errorf("failed to read W2: %w", err)
+	}
+	fmt.Fscanln(file, &header) // Read "B2"
+	net.B2, err = readMatrix()
+	if err != nil {
+		return fmt.Errorf("failed to read B2: %w", err)
+	}
 
 	return nil
 }

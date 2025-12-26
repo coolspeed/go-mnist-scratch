@@ -2,127 +2,107 @@ package main
 
 import (
 	"fmt"
-	"os"
+	"log"
+	"math/rand"
+	"path/filepath"
+	"time"
 
+	"github.com/coolspeed/go-mnist-scratch/matrix"
 	"github.com/coolspeed/go-mnist-scratch/neural"
 	"github.com/coolspeed/go-mnist-scratch/utils"
 )
 
 const (
-	inputSize    = 784
-	hiddenSize   = 200
-	outputSize   = 10
+	inputSize   = 784 // 28x28 pixels
+	hiddenSize  = 200
+	outputSize  = 10 // 0-9 digits
 	learningRate = 0.3
-	epochs       = 1
-	batchSize    = 600
+	epochs      = 20
+	batchSize   = 64
+	modelPath   = "mnist_model.gob" // Using .gob for now, CLAUDE.md suggests JSON/Gob
 )
 
-func train(imageFile, labelFile string) {
+func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	fmt.Println("Loading MNIST data...")
-	data, err := utils.LoadMNIST(imageFile, labelFile)
+	trainImagePath := filepath.Join("data", "train-images-idx3-ubyte.gz")
+	trainLabelPath := filepath.Join("data", "train-labels-idx1-ubyte.gz")
+	testImagePath := filepath.Join("data", "t10k-images-idx3-ubyte.gz")
+	testLabelPath := filepath.Join("data", "t10k-labels-idx1-ubyte.gz")
+
+	trainImagesData, trainLabelsData, err := utils.LoadMNIST(trainImagePath, trainLabelPath)
 	if err != nil {
-		fmt.Printf("Error loading data: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("Error loading training data: %v", err)
+	}
+	testImagesData, testLabelsData, err := utils.LoadMNIST(testImagePath, testLabelPath)
+	if err != nil {
+		log.Fatalf("Error loading testing data: %v", err)
 	}
 
-	fmt.Printf("Loaded %d images and %d labels\n", len(data.Images), len(data.Labels))
+	fmt.Printf("Training images loaded: %d\n", trainImagesData.NumImages)
+	fmt.Printf("Training labels loaded: %d\n", trainLabelsData.NumLabels)
+	fmt.Printf("Test images loaded: %d\n", testImagesData.NumImages)
+	fmt.Printf("Test labels loaded: %d\n", testLabelsData.NumLabels)
 
-	network := neural.NewNetwork(inputSize, hiddenSize, outputSize)
+	net := neural.NewNetwork(inputSize, hiddenSize, outputSize, learningRate)
 
 	fmt.Println("Starting training...")
+	for e := 0; e < epochs; e++ {
+		fmt.Printf("Epoch %d/%d\n", e+1, epochs)
 
-	numBatches := 1
-	for epoch := 0; epoch < epochs; epoch++ {
-		correct := 0
+		// Shuffle training data
+		perm := rand.Perm(int(trainImagesData.NumImages))
 
-		for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
-			start := batchIdx * batchSize
-			end := start + batchSize
-			if end > len(data.Images) {
-				end = len(data.Images)
+		for i := 0; i < int(trainImagesData.NumImages); i += batchSize {
+			end := i + batchSize
+			if end > int(trainImagesData.NumImages) {
+				end = int(trainImagesData.NumImages)
 			}
 
-			for i := start; i < end; i++ {
-				images := utils.FlattenImage(data.Images[i])
-				network.Train(images, data.Labels[i].OneHot, 1, 1, learningRate)
+			// For simplicity, current Train method handles single sample.
+			// Batching logic would involve averaging gradients.
+			// For now, process each sample in the batch individually.
+			for j := i; j < end; j++ {
+				idx := perm[j]
+				inputMatrix := matrix.NewMatrix(1, inputSize)
+				inputMatrix[0] = trainImagesData.Images[idx]
 
-				output := network.Predict(images)
-				if output == data.Labels[i].Value {
-					correct++
+				targetMatrix := matrix.NewMatrix(1, outputSize)
+				targetMatrix[0] = utils.OneHotEncode(trainLabelsData.Labels[idx], outputSize)
+
+				err := net.Train(inputMatrix, targetMatrix)
+				if err != nil {
+					log.Printf("Error training on sample %d: %v", idx, err)
 				}
 			}
 		}
 
-		accuracy := float64(correct) / float64(len(data.Images)) * 100
-		fmt.Printf("Epoch %d, Accuracy: %.2f%%\n", epoch, accuracy)
-	}
+		// Evaluate accuracy on test set after each epoch (optional, but good for monitoring)
+		correct := 0
+		for i := 0; i < int(testImagesData.NumImages); i++ {
+			inputMatrix := matrix.NewMatrix(1, inputSize)
+			inputMatrix[0] = testImagesData.Images[i]
 
-	fmt.Println("Training complete!")
-	fmt.Println("Saving model...")
-	err = network.SaveModel("model.txt")
-	if err != nil {
-		fmt.Printf("Error saving model: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Println("Model saved to model.txt")
-}
+			predicted, err := net.Predict(inputMatrix)
+			if err != nil {
+				log.Printf("Error predicting for test sample %d: %v", i, err)
+				continue
+			}
 
-func eval() {
-	fmt.Println("Loading test data...")
-	testData, err := utils.LoadMNIST("data/t10k-images-idx3-ubyte", "data/t10k-labels-idx1-ubyte")
-	if err != nil {
-		fmt.Printf("Error loading test data: %v\n", err)
-		return
-	}
-
-	fmt.Printf("Loaded %d test images\n", len(testData.Images))
-
-	network := &neural.Network{}
-	err = network.LoadModel("model.txt")
-	if err != nil {
-		fmt.Printf("Error loading model: %v\n", err)
-		return
-	}
-
-	correct := 0
-	for i := 0; i < len(testData.Images); i++ {
-		images := utils.FlattenImage(testData.Images[i])
-		prediction := network.Predict(images)
-		if prediction == testData.Labels[i].Value {
-			correct++
+			actual := int(testLabelsData.Labels[i])
+			if predicted == actual {
+				correct++
+			}
 		}
-
-		if (i+1)%1000 == 0 {
-			fmt.Printf("Processed %d/%d images\n", i+1, len(testData.Images))
-		}
+		accuracy := float64(correct) / float64(testImagesData.NumImages) * 100
+		fmt.Printf("Epoch %d: Test Accuracy: %.2f%%\n", e+1, accuracy)
 	}
 
-	accuracy := float64(correct) / float64(len(testData.Images)) * 100
-	fmt.Printf("\nTest Accuracy: %.2f%% (%d/%d)\n", accuracy, correct, len(testData.Images))
-}
-
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <train|eval> [args...]")
-		fmt.Println("  train <train-images-file> <train-labels-file>  - Train the model")
-		fmt.Println("  eval  - Evaluate the model on test data")
-		os.Exit(1)
+	fmt.Println("Training complete. Saving model...")
+	err = net.SaveModel(modelPath)
+	if err != nil {
+		log.Fatalf("Error saving model: %v", err)
 	}
-
-	command := os.Args[1]
-
-	switch command {
-	case "train":
-		if len(os.Args) < 4 {
-			fmt.Println("Usage: go run main.go train <train-images-file> <train-labels-file>")
-			os.Exit(1)
-		}
-		train(os.Args[2], os.Args[3])
-	case "eval":
-		eval()
-	default:
-		fmt.Printf("Unknown command: %s\n", command)
-		fmt.Println("Available commands: train, eval")
-		os.Exit(1)
-	}
+	fmt.Printf("Model saved to %s\n", modelPath)
 }

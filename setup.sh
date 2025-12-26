@@ -1,22 +1,21 @@
 #!/bin/bash
 
+# Create data directory if it doesn't exist
 mkdir -p data
+
+# URLs for MNIST dataset
+BASE_URL="https://ossci-datasets.s3.amazonaws.com/mnist"
+TRAIN_IMAGES="$BASE_URL/train-images-idx3-ubyte.gz"
+TRAIN_LABELS="$BASE_URL/train-labels-idx1-ubyte.gz"
+TEST_IMAGES="$BASE_URL/t10k-images-idx3-ubyte.gz"
+TEST_LABELS="$BASE_URL/t10k-labels-idx1-ubyte.gz"
 
 echo "Downloading MNIST dataset..."
 
-curl -L -o data/train-images-idx3-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz
-curl -L -o data/train-labels-idx1-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/train-labels-idx1-ubyte.gz
-curl -L -o data/t10k-images-idx3-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/t10k-images-idx3-ubyte.gz
-curl -L -o data/t10k-labels-idx1-ubyte.gz https://ossci-datasets.s3.amazonaws.com/mnist/t10k-labels-idx1-ubyte.gz
+# Download files
+curl -L -o data/train-images-idx3-ubyte.gz $TRAIN_IMAGES
+curl -L -o data/train-labels-idx1-ubyte.gz $TRAIN_LABELS
+curl -L -o data/t10k-images-idx3-ubyte.gz $TEST_IMAGES
+curl -L -o data/t10k-labels-idx1-ubyte.gz $TEST_LABELS
 
-echo "Extracting files..."
-
-cd data
-gzip -d train-images-idx3-ubyte.gz
-gzip -d train-labels-idx1-ubyte.gz
-gzip -d t10k-images-idx3-ubyte.gz
-gzip -d t10k-labels-idx1-ubyte.gz
-cd ..
-
-echo "Download complete!"
-echo "Files saved in data/ directory"
+echo "Download complete. Files saved in the 'data' directory."
