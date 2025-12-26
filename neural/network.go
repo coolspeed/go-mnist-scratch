@@ -1,6 +1,7 @@
 package neural
 
 import (
+	"encoding/gob"
 	"fmt"
 	"math"
 	"math/rand"
@@ -225,8 +226,7 @@ z1SigmoidPrime := z1.Apply(SigmoidPrime) // Derivative of sigmoid applied to z1
 
 
 
-// SaveModel saves the network's weights and biases to a file.
-// This is a simple text-based save. For production, consider JSON/Gob.
+// SaveModel saves the network's weights and biases to a file using encoding/gob.
 func (net *Network) SaveModel(filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -234,48 +234,16 @@ func (net *Network) SaveModel(filename string) error {
 	}
 	defer file.Close()
 
-	// Helper to write a matrix
-	writeMatrix := func(m matrix.Matrix) error {
-		_, err := fmt.Fprintf(file, "%d %d\n", len(m), len(m[0]))
-		if err != nil {
-			return err
-		}
-		for i := range m {
-			for j := range m[i] {
-				_, err = fmt.Fprintf(file, "%f ", m[i][j])
-				if err != nil {
-					return err
-				}
-			}
-			_, err = fmt.Fprintln(file) // Newline after each row
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	fmt.Fprintln(file, "W1")
-	if err := writeMatrix(net.W1); err != nil {
-		return fmt.Errorf("failed to write W1: %w", err)
-	}
-	fmt.Fprintln(file, "B1")
-	if err := writeMatrix(net.B1); err != nil {
-		return fmt.Errorf("failed to write B1: %w", err)
-	}
-	fmt.Fprintln(file, "W2")
-	if err := writeMatrix(net.W2); err != nil {
-		return fmt.Errorf("failed to write W2: %w", err)
-	}
-	fmt.Fprintln(file, "B2")
-	if err := writeMatrix(net.B2); err != nil {
-		return fmt.Errorf("failed to write B2: %w", err)
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(net)
+	if err != nil {
+		return fmt.Errorf("failed to encode network: %w", err)
 	}
 
 	return nil
 }
 
-// LoadModel loads the network's weights and biases from a file.
+// LoadModel loads the network's weights and biases from a file using encoding/gob.
 func (net *Network) LoadModel(filename string) error {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -283,46 +251,10 @@ func (net *Network) LoadModel(filename string) error {
 	}
 	defer file.Close()
 
-	// Helper to read a matrix
-	readMatrix := func() (matrix.Matrix, error) {
-		var rows, cols int
-		_, err := fmt.Fscanf(file, "%d %d\n", &rows, &cols)
-		if err != nil {
-			return nil, err
-		}
-		m := matrix.NewMatrix(rows, cols)
-		for i := 0; i < rows; i++ {
-			for j := 0; j < cols; j++ {
-				_, err = fmt.Fscanf(file, "%f", &m[i][j])
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
-		return m, nil
-	}
-
-	var header string
-
-	fmt.Fscanln(file, &header) // Read "W1"
-	net.W1, err = readMatrix()
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(net)
 	if err != nil {
-		return fmt.Errorf("failed to read W1: %w", err)
-	}
-	fmt.Fscanln(file, &header) // Read "B1"
-	net.B1, err = readMatrix()
-	if err != nil {
-		return fmt.Errorf("failed to read B1: %w", err)
-	}
-	fmt.Fscanln(file, &header) // Read "W2"
-	net.W2, err = readMatrix()
-	if err != nil {
-		return fmt.Errorf("failed to read W2: %w", err)
-	}
-	fmt.Fscanln(file, &header) // Read "B2"
-	net.B2, err = readMatrix()
-	if err != nil {
-		return fmt.Errorf("failed to read B2: %w", err)
+		return fmt.Errorf("failed to decode network: %w", err)
 	}
 
 	return nil

@@ -124,8 +124,12 @@ func TestLoadMNIST(t *testing.T) {
 		t.Fatalf("Failed to load MNIST dataset: %v", err)
 	}
 
-	if len(imageDataSet) != 1 || len(labelDataSet) != 1 {
-		t.Fatalf("LoadMNIST returned unexpected dataset lengths: images %d, labels %d", len(imageDataSet), len(labelDataSet))
+	if imageDataSet == nil || labelDataSet == nil {
+		t.Fatalf("LoadMNIST returned nil datasets")
+	}
+
+	if imageDataSet.NumImages != expectedTrainImages {
+		t.Errorf("Expected %d images, got %d", expectedTrainImages, imageDataSet.NumImages)
 	}
 
 	// Further checks would be redundant as LoadImages and LoadLabels are tested separately.
