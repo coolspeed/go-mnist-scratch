@@ -1,6 +1,9 @@
 package matrix
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 // Matrix type is an alias for a 2D slice of float64
 type Matrix [][]float64
@@ -140,12 +143,22 @@ func (a Matrix) DotProduct(b Matrix) (Matrix, error) {
 	}
 
 	result := NewMatrix(rowsA, colsB)
+	var wg sync.WaitGroup
+
+	// Parallelize using goroutines for each row of the result
 	for i := 0; i < rowsA; i++ {
-		for j := 0; j < colsB; j++ {
-			for k := 0; k < colsA; k++ {
-				result[i][j] += a[i][k] * b[k][j]
+		wg.Add(1)
+		go func(rowIdx int) {
+			defer wg.Done()
+			for j := 0; j < colsB; j++ {
+				sum := 0.0
+				for k := 0; k < colsA; k++ {
+					sum += a[rowIdx][k] * b[k][j]
+				}
+				result[rowIdx][j] = sum
 			}
-		}
+		}(i)
 	}
+	wg.Wait()
 	return result, nil
 }

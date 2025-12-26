@@ -71,6 +71,34 @@ func TestDotProduct(t *testing.T) {
 	}
 }
 
+func BenchmarkDotProduct(b *testing.B) {
+	// Simulate input layer -> hidden layer multiplication
+	// Input: 64 batch size x 784 features
+	// Weights: 784 features x 200 hidden neurons
+	rowsA, colsA := 64, 784
+	rowsB, colsB := 784, 200
+
+	m1 := NewMatrix(rowsA, colsA)
+	m2 := NewMatrix(rowsB, colsB)
+
+	// Initialize with some values to avoid compiler optimizations skipping work
+	for i := 0; i < rowsA; i++ {
+		for j := 0; j < colsA; j++ {
+			m1[i][j] = float64(i + j)
+		}
+	}
+	for i := 0; i < rowsB; i++ {
+		for j := 0; j < colsB; j++ {
+			m2[i][j] = float64(i - j)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = m1.DotProduct(m2)
+	}
+}
+
 func TestAdd(t *testing.T) {
 	// Test case 1: Valid addition
 	a := Matrix{{1, 2}, {3, 4}}
