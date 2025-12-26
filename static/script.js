@@ -3,114 +3,121 @@ const ctx = canvas.getContext('2d');
 const predictButton = document.getElementById('predictButton');
 const clearButton = document.getElementById('clearButton');
 const predictionResult = document.getElementById('predictionResult');
-const pixelGridDiv = document.getElementById('pixelGrid');
+const pixelGridDiv = document.getElementById('pixelGrid'); // We might not update this in real-time anymore
 
 const CANVAS_SIZE = 280;
-const PIXEL_SIZE = 10; // Each drawn pixel will be 10x10 on a 280x280 canvas
-const GRID_DIM = CANVAS_SIZE / PIXEL_SIZE; // 28x28 grid
 
-let isDrawing = false;
-let pixels = Array(GRID_DIM * GRID_DIM).fill(0); // 28*28 = 784 pixels, 0 for white, 1 for black/drawn
-
-// Initialize canvas
+// Initialize canvas with white background
 ctx.fillStyle = 'white';
 ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-ctx.lineWidth = PIXEL_SIZE; // The "brush" size will be one grid cell
 
-// Event Listeners for drawing
+// Drawing state
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+
+// Event Listeners for smooth drawing
 canvas.addEventListener('mousedown', (e) => {
     isDrawing = true;
-    drawPixel(e);
+    [lastX, lastY] = [e.offsetX, e.offsetY];
 });
 
-canvas.addEventListener('mousemove', (e) => {
-    if (isDrawing) {
-        drawPixel(e);
-    }
-});
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', () => isDrawing = false);
+canvas.addEventListener('mouseout', () => isDrawing = false);
 
-canvas.addEventListener('mouseup', () => {
-    isDrawing = false;
+function draw(e) {
+    if (!isDrawing) return;
+
     ctx.beginPath();
-});
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(e.offsetX, e.offsetY);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 20; // Thicker brush for better downsampling visibility
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
 
-canvas.addEventListener('mouseout', () => {
-    isDrawing = false;
-    ctx.beginPath();
-});
-
-function drawPixel(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Get grid coordinates
-    const gridX = Math.floor(x / PIXEL_SIZE);
-    const gridY = Math.floor(y / PIXEL_SIZE);
-
-    if (gridX >= 0 && gridX < GRID_DIM && gridY >= 0 && gridY < GRID_DIM) {
-        const index = gridY * GRID_DIM + gridX;
-        pixels[index] = 1; // Mark as drawn
-
-        // Draw on canvas
-        ctx.fillStyle = 'black';
-        ctx.fillRect(gridX * PIXEL_SIZE, gridY * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-
-        // Update visual pixel grid
-        updatePixelGrid();
-    }
+    [lastX, lastY] = [e.offsetX, e.offsetY];
 }
-
-function updatePixelGrid() {
-    pixelGridDiv.innerHTML = ''; // Clear previous grid
-    pixelGridDiv.style.gridTemplateColumns = `repeat(${GRID_DIM}, ${PIXEL_SIZE}px)`;
-    pixelGridDiv.style.gridTemplateRows = `repeat(${GRID_DIM}, ${PIXEL_SIZE}px)`;
-
-    for (let i = 0; i < pixels.length; i++) {
-        const pixelDiv = document.createElement('div');
-        pixelDiv.classList.add('pixel');
-        if (pixels[i] === 1) {
-            pixelDiv.classList.add('active');
-        }
-        pixelGridDiv.appendChild(pixelDiv);
-    }
-}
-
-// Initial pixel grid display
-updatePixelGrid();
 
 // Clear Button
 clearButton.addEventListener('click', () => {
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-    pixels.fill(0);
     predictionResult.textContent = '_';
-    updatePixelGrid();
+    pixelGridDiv.innerHTML = ''; // Clear debug grid
 });
 
 // Predict Button
 predictButton.addEventListener('click', async () => {
-    // Convert pixels array to comma-separated string
-    const imageDataString = pixels.join(',');
+    // 1. Downsample to 28x28
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 28;
+    tempCanvas.height = 28;
+    const tempCtx = tempCanvas.getContext('2d');
 
+    // Smooth scaling
+    tempCtx.imageSmoothingEnabled = true;
+    tempCtx.imageSmoothingQuality = 'high';
+    
+    // Draw the main canvas onto the small canvas
+    tempCtx.drawImage(canvas, 0, 0, 28, 28);
+
+    // 2. Extract pixel data
+    const imgData = tempCtx.getImageData(0, 0, 28, 28);
+    const pixels = [];
+
+    // Visualize the downsampled grid for debugging (optional)
+    pixelGridDiv.innerHTML = '';
+    pixelGridDiv.style.gridTemplateColumns = `repeat(28, 10px)`;
+    pixelGridDiv.style.gridTemplateRows = `repeat(28, 10px)`;
+
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        // Canvas is White background, Black drawing.
+        // MNIST is Black background(0), White drawing(1).
+        // So we need to invert and normalize.
+        // R, G, B are same in grayscale.
+        const colorVal = imgData.data[i]; // 0(black) to 255(white)
+        
+        // Invert: 0(black) -> 1.0, 255(white) -> 0.0
+        let normalized = (255 - colorVal) / 255.0;
+        
+        // Improve contrast/thresholding to reduce noise
+        // if (normalized < 0.1) normalized = 0; 
+        
+        pixels.push(normalized);
+
+        // Update debug grid visualization
+        const pixelDiv = document.createElement('div');
+        pixelDiv.classList.add('pixel');
+        // Visualize intensity
+        const grayVal = Math.floor((1 - normalized) * 255);
+        pixelDiv.style.backgroundColor = `rgb(${grayVal}, ${grayVal}, ${grayVal})`;
+        if (normalized > 0.1) { 
+             // pixelDiv.classList.add('active'); // Simply use color for better feedback
+        }
+        pixelGridDiv.appendChild(pixelDiv);
+    }
+
+    // 3. Send to server
     try {
         const response = await fetch('/predict', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ image: imageDataString }),
+            body: JSON.stringify({ image: pixels.join(',') }),
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            throw new Error(`Server error: ${response.status}`);
         }
 
         const data = await response.json();
         predictionResult.textContent = data.prediction;
     } catch (error) {
-        console.error('Error during prediction:', error);
-        predictionResult.textContent = 'Error';
+        console.error('Error:', error);
+        predictionResult.textContent = 'Err';
     }
 });
