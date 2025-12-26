@@ -90,7 +90,26 @@ func predictHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inputMatrix := matrix.NewMatrix(1, inputSize)
-	inputMatrix[0] = inputPixels
+	// Apply Center of Mass centering
+	centeredPixels := centerImage(inputPixels)
+	inputMatrix[0] = centeredPixels
+
+	// Debug: Print input image as ASCII art
+	fmt.Println("--- Processed (Centered) Image Input ---")
+	for r := 0; r < 28; r++ {
+		for c := 0; c < 28; c++ {
+			val := centeredPixels[r*28+c]
+			if val > 0.5 {
+				fmt.Print("#") // Ink
+			} else if val > 0.1 {
+				fmt.Print(".") // Faint ink
+			} else {
+				fmt.Print(" ") // Background
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println("----------------------------------------")
 
 	prediction, err := net.Predict(inputMatrix)
 	if err != nil {
@@ -101,4 +120,44 @@ func predictHandler(w http.ResponseWriter, r *http.Request) {
 	response := map[string]int{"prediction": prediction}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// centerImage shifts the image so that its center of mass is at (14, 14).
+func centerImage(pixels []float64) []float64 {
+	sumX, sumY, totalWeight := 0.0, 0.0, 0.0
+	for i, val := range pixels {
+		if val > 0 {
+			x := float64(i % 28)
+			y := float64(i / 28)
+			sumX += x * val
+			sumY += y * val
+			totalWeight += val
+		}
+	}
+
+	if totalWeight == 0 {
+		return pixels
+	}
+
+	centerX := sumX / totalWeight
+	centerY := sumY / totalWeight
+
+	shiftX := 14.0 - centerX
+	shiftY := 14.0 - centerY
+
+	newPixels := make([]float64, len(pixels))
+	for r := 0; r < 28; r++ {
+		for c := 0; c < 28; c++ {
+			// Find which source pixel maps to (c, r)
+			// (c, r) = (srcX + shiftX, srcY + shiftY)
+			// => srcX = c - shiftX
+			srcX := int(float64(c) - shiftX)
+			srcY := int(float64(r) - shiftY)
+
+			if srcX >= 0 && srcX < 28 && srcY >= 0 && srcY < 28 {
+				newPixels[r*28+c] = pixels[srcY*28+srcX]
+			}
+		}
+	}
+	return newPixels
 }
