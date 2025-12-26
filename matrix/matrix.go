@@ -143,22 +143,40 @@ func (a Matrix) DotProduct(b Matrix) (Matrix, error) {
 	}
 
 	result := NewMatrix(rowsA, colsB)
-	var wg sync.WaitGroup
+	
+	// Adaptive Parallelism Threshold
+	// For small batch sizes (like single inference), the overhead of goroutines outweighs the benefits.
+	const parallelThreshold = 4
 
-	// Parallelize using goroutines for each row of the result
-	for i := 0; i < rowsA; i++ {
-		wg.Add(1)
-		go func(rowIdx int) {
-			defer wg.Done()
+	if rowsA < parallelThreshold {
+		// Sequential execution for small matrices
+		for i := 0; i < rowsA; i++ {
 			for j := 0; j < colsB; j++ {
 				sum := 0.0
 				for k := 0; k < colsA; k++ {
-					sum += a[rowIdx][k] * b[k][j]
+					sum += a[i][k] * b[k][j]
 				}
-				result[rowIdx][j] = sum
+				result[i][j] = sum
 			}
-		}(i)
+		}
+	} else {
+		// Parallel execution for large matrices (Training batches)
+		var wg sync.WaitGroup
+		for i := 0; i < rowsA; i++ {
+			wg.Add(1)
+			go func(rowIdx int) {
+				defer wg.Done()
+				for j := 0; j < colsB; j++ {
+					sum := 0.0
+					for k := 0; k < colsA; k++ {
+						sum += a[rowIdx][k] * b[k][j]
+					}
+					result[rowIdx][j] = sum
+				}
+			}(i)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
+
 	return result, nil
 }
