@@ -127,23 +127,15 @@ func (n *Network) Train(images []float64, labels []float64, epochs int, batchSiz
 	target, _ := matrix.NewMatrix(1, len(labels))
 	target.Data[0] = labels
 
-	for epoch := 0; epoch < epochs; epoch++ {
-		a1, output, z1 := n.Forward(input)
+	a1, output, z1 := n.Forward(input)
 
-		correct := 0
-		for i := range output.Data[0] {
-			if (output.Data[0][i] > 0.5 && labels[i] == 1.0) || (output.Data[0][i] <= 0.5 && labels[i] == 0.0) {
-				correct++
-			}
-		}
-		accuracy := float64(correct) / float64(len(labels))
-
-		n.Backward(input, a1, output, z1, target, learningRate)
-
-		if epoch%10 == 0 {
-			fmt.Printf("Epoch %d, Accuracy: %.2f%%\n", epoch, accuracy*100)
+	correct := 0
+	for i := range output.Data[0] {
+		if (output.Data[0][i] > 0.5 && labels[i] == 1.0) || (output.Data[0][i] <= 0.5 && labels[i] == 0.0) {
+			correct++
 		}
 	}
+	n.Backward(input, a1, output, z1, target, learningRate)
 }
 
 func (n *Network) Predict(images []float64) int {

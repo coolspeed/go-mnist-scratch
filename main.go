@@ -13,8 +13,8 @@ const (
 	hiddenSize   = 200
 	outputSize   = 10
 	learningRate = 0.3
-	epochs       = 20
-	batchSize    = 64
+	epochs       = 1
+	batchSize    = 600
 )
 
 func train(imageFile, labelFile string) {
@@ -31,9 +31,30 @@ func train(imageFile, labelFile string) {
 
 	fmt.Println("Starting training...")
 
-	for i := 0; i < batchSize && i < len(data.Images); i++ {
-		images := utils.FlattenImage(data.Images[i])
-		network.Train(images, data.Labels[i].OneHot, epochs, batchSize, learningRate)
+	numBatches := 1
+	for epoch := 0; epoch < epochs; epoch++ {
+		correct := 0
+
+		for batchIdx := 0; batchIdx < numBatches; batchIdx++ {
+			start := batchIdx * batchSize
+			end := start + batchSize
+			if end > len(data.Images) {
+				end = len(data.Images)
+			}
+
+			for i := start; i < end; i++ {
+				images := utils.FlattenImage(data.Images[i])
+				network.Train(images, data.Labels[i].OneHot, 1, 1, learningRate)
+
+				output := network.Predict(images)
+				if output == data.Labels[i].Value {
+					correct++
+				}
+			}
+		}
+
+		accuracy := float64(correct) / float64(len(data.Images)) * 100
+		fmt.Printf("Epoch %d, Accuracy: %.2f%%\n", epoch, accuracy)
 	}
 
 	fmt.Println("Training complete!")
