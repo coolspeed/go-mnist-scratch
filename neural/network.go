@@ -206,7 +206,7 @@ func (n *Network) LoadModel(filename string) error {
 	defer file.Close()
 
 	var rows, cols int
-	fmt.Fscanf(file, "%d %d", &rows, &cols)
+	fmt.Fscanf(file, "%d %d\n", &rows, &cols)
 
 	W1, _ := matrix.NewMatrix(rows, cols)
 	for i := 0; i < rows; i++ {
@@ -215,13 +215,13 @@ func (n *Network) LoadModel(filename string) error {
 		}
 	}
 
-	fmt.Fscanf(file, "%d", &cols)
+	fmt.Fscanf(file, "\n%d\n", &cols)
 	B1, _ := matrix.NewMatrix(1, cols)
 	for j := 0; j < cols; j++ {
 		fmt.Fscanf(file, "%f", &B1.Data[0][j])
 	}
 
-	fmt.Fscanf(file, "%d %d", &rows, &cols)
+	fmt.Fscanf(file, "\n%d %d\n", &rows, &cols)
 	W2, _ := matrix.NewMatrix(rows, cols)
 	for i := 0; i < rows; i++ {
 		for j := 0; j < cols; j++ {
@@ -229,7 +229,7 @@ func (n *Network) LoadModel(filename string) error {
 		}
 	}
 
-	fmt.Fscanf(file, "%d", &cols)
+	fmt.Fscanf(file, "\n%d\n", &cols)
 	B2, _ := matrix.NewMatrix(1, cols)
 	for j := 0; j < cols; j++ {
 		fmt.Fscanf(file, "%f", &B2.Data[0][j])
