@@ -26,6 +26,8 @@ train:
 server: build
 	./$(SERVER_BIN)
 
+run: server
+
 validate:
 	@echo "Running validation..."
 	go run cmd/validate/main.go
