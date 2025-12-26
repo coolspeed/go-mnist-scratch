@@ -1,9 +1,9 @@
 .PHONY: build train server validate test clean help
 
 # Binary names
-SERVER_BIN=server_bin
-TRAIN_BIN=train_bin
-VALIDATE_BIN=validate_bin
+SERVER_BIN=bin/server
+TRAIN_BIN=bin/train
+VALIDATE_BIN=bin/validate
 
 help:
 	@echo "Usage:"
