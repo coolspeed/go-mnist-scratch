@@ -37,13 +37,9 @@ go-mnist-scratch/
 
 ## 시작하기
 
-### 1. 데이터 다운로드
+MNIST 데이터셋은 `data/` 디렉토리에 이미 포함되어 있어 별도의 다운로드 없이 바로 시작할 수 있습니다.
 
-```bash
-./setup.sh
-```
-
-### 2. 학습 (Training)
+### 1. 학습 (Training)
 
 ```bash
 make train
@@ -53,7 +49,7 @@ go run cmd/train/main.go
 
 학습된 모델은 `mnist_model.gob` 파일로 저장됩니다.
 
-### 3. 검증 (Validation)
+### 2. 검증 (Validation)
 
 학습된 모델의 정확도를 검증합니다.
 
