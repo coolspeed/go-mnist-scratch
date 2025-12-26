@@ -1,49 +1,49 @@
-# Performance Analysis & Optimization Strategy
+# 성능 분석 및 최적화 전략
 
-## 1. Context
-We aim to achieve sub-10ms inference latency for a single image (Batch Size = 1) while maintaining high throughput for training (Batch Size = 64).
+## 1. 배경
+우리는 단일 이미지 추론(Batch Size = 1)에서 10ms 미만의 지연 시간(latency)을 달성하는 동시에, 학습(Batch Size = 64) 시에는 높은 처리량(throughput)을 유지하는 것을 목표로 합니다.
 
-## 2. Baseline Benchmarks
+## 2. 베이스라인 벤치마크 (최적화 전)
 
-### Environment
+### 테스트 환경
 - **OS**: Darwin (macOS)
 - **Arch**: arm64 (Apple M2)
 - **Matrix Operation**: `DotProduct` (784 features x 200 hidden neurons)
 
-### Observations
+### 관찰 결과
 
-#### A. Training Scenario (Batch Size = 64)
-- **Sequential**: ~34.6 ms
-- **Parallel (Goroutines)**: ~2.3 ms
-- **Result**: **15x Speedup**. Parallelism is highly effective.
+#### A. 학습 시나리오 (Batch Size = 64)
+- **순차 처리 (Sequential)**: 약 34.6 ms
+- **병렬 처리 (Goroutines)**: 약 2.3 ms
+- **결과**: **15배 속도 향상**. 대규모 행렬 연산에서 병렬화가 매우 효과적임.
 
-#### B. Inference Scenario (Batch Size = 1)
-- **Parallel (Goroutines)**: ~229 µs (Avg)
-- **Sequential (Simulated with GOMAXPROCS=1)**: ~220 µs (Avg)
-- **Result**: **Negative Impact**. The overhead of creating goroutines and synchronizing (`sync.WaitGroup`) outweighs the benefit of parallelizing a single row calculation.
+#### B. 추론 시나리오 (Batch Size = 1)
+- **병렬 처리 (Goroutines)**: 약 229 µs (평균)
+- **순차 처리 (GOMAXPROCS=1 시뮬레이션)**: 약 220 µs (평균)
+- **결과**: **성능 저하 발생**. 단일 행 계산 시에는 고루틴 생성 및 동기화(`sync.WaitGroup`) 오버헤드가 병렬화의 이점보다 큼.
 
-## 3. Design Decision: Adaptive Parallelism
+## 3. 설계 결정: 적응형 병렬화 (Adaptive Parallelism)
 
-To optimize for both scenarios, we will implement an **adaptive strategy** in the `matrix.DotProduct` function.
+두 시나리오 모두를 최적화하기 위해 `matrix.DotProduct` 함수에 **적응형 전략**을 구현합니다.
 
-- **Threshold**: We define a threshold for the number of rows (e.g., 4).
-- **Logic**:
-    - If `rows < Threshold`: Execute sequentially (avoid concurrency overhead).
-    - If `rows >= Threshold`: Execute in parallel (utilize multi-core).
+- **임계값 (Threshold)**: 행(row)의 개수에 대한 임계값을 설정합니다 (예: 4).
+- **로직**:
+    - `rows < Threshold`: 순차 실행 (동시성 오버헤드 회피).
+    - `rows >= Threshold`: 병렬 실행 (멀티코어 활용).
 
-### Expected Outcome
-- **Inference (Batch=1)**: Should return to ~220 µs or lower (Sequential performance).
-- **Training (Batch=64)**: Should maintain ~2.3 ms (Parallel performance).
+### 기대 효과
+- **추론 (Batch=1)**: 약 220 µs 이하로 복귀 (순차 처리 성능).
+- **학습 (Batch=64)**: 약 2.3 ms 유지 (병렬 처리 성능).
 
-## 4. Post-Implementation Verification
+## 4. 구현 후 검증 (Verification)
 
-### Benchmark Results (Batch=1)
-After implementing the adaptive threshold (`parallelThreshold = 4`), we re-ran the single inference benchmark.
+### 벤치마크 결과 (Batch=1)
+적응형 임계값(`parallelThreshold = 4`) 구현 후, 단일 추론 벤치마크를 다시 실행했습니다.
 
-- **Result**: ~213 µs (Avg)
-- **Improvement**: 
-    - vs Parallel (229 µs): **~7% faster**
-    - vs Sequential GOMAXPROCS=1 (220 µs): **~3% faster**
+- **결과**: 약 213 µs (평균)
+- **성능 향상**: 
+    - 병렬 처리 버전(229 µs) 대비: **약 7% 더 빠름**
+    - 순차 처리 시뮬레이션(220 µs) 대비: **약 3% 더 빠름** (불필요한 고루틴 생성 로직 자체가 제거되었기 때문)
 
-### Conclusion
-The adaptive parallelism strategy successfully optimizes for both latency (single inference) and throughput (batch training). By avoiding goroutine overhead for small matrices, we achieved the fastest possible inference time on this architecture.
+### 결론
+적응형 병렬화 전략은 지연 시간(단일 추론)과 처리량(배치 학습) 두 마리 토끼를 모두 잡는 데 성공했습니다. 작은 행렬에 대해서는 고루틴 오버헤드를 제거함으로써, 해당 아키텍처에서 가능한 가장 빠른 추론 속도를 달성했습니다.
