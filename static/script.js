@@ -3,6 +3,7 @@ const ctx = canvas.getContext('2d');
 const predictButton = document.getElementById('predictButton');
 const clearButton = document.getElementById('clearButton');
 const predictionResult = document.getElementById('predictionResult');
+const inferenceTime = document.getElementById('inferenceTime');
 const pixelGridDiv = document.getElementById('pixelGrid'); // We might not update this in real-time anymore
 
 const CANVAS_SIZE = 280;
@@ -46,6 +47,7 @@ clearButton.addEventListener('click', () => {
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     predictionResult.textContent = '_';
+    inferenceTime.textContent = '_';
     pixelGridDiv.innerHTML = ''; // Clear debug grid
 });
 
@@ -116,8 +118,10 @@ predictButton.addEventListener('click', async () => {
 
         const data = await response.json();
         predictionResult.textContent = data.prediction;
+        inferenceTime.textContent = data.duration_us;
     } catch (error) {
         console.error('Error:', error);
         predictionResult.textContent = 'Err';
+        inferenceTime.textContent = '_';
     }
 });

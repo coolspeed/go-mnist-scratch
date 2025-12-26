@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coolspeed/go-mnist-scratch/matrix"
 	"github.com/coolspeed/go-mnist-scratch/neural"
@@ -111,13 +112,20 @@ func predictHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Println("----------------------------------------")
 
+	// Measure pure inference time
+	startTime := time.Now()
 	prediction, err := net.Predict(inputMatrix)
+	inferenceDuration := time.Since(startTime)
+
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Prediction failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	response := map[string]int{"prediction": prediction}
+	response := map[string]interface{}{
+		"prediction":  prediction,
+		"duration_us": inferenceDuration.Microseconds(),
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
