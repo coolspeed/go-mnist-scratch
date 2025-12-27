@@ -26,7 +26,7 @@ go-mnist-scratch/
 ├── static/             # 웹 프론트엔드 파일 (HTML/JS)
 ├── utils/              # 유틸리티 (데이터 로더 등)
 ├── Makefile            # 빌드 및 실행 자동화
-└── setup.sh            # 데이터 다운로드 스크립트
+└── download_data.sh    # 데이터 다운로드 스크립트
 ```
 
 ## 신경망 아키텍처

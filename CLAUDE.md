@@ -126,7 +126,7 @@ MNIST는 IDX 바이너리 포맷을 사용합니다. `encoding/binary` 패키지
 - 이미지 데이터를 `[]float64` (0.0~1.0 정규화)로 변환
 - 레이블 데이터를 One-hot encoding 벡터로 변환
 
-`setup.sh` - 데이터 다운로드 자동화
+`download_data.sh` - 데이터 다운로드 자동화
 - `curl`을 사용하여 Yann LeCun 교수님의 웹사이트나 미러 사이트에서 데이터셋 다운로드
 
 ### Phase 3: neural 패키지

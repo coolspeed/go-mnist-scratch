@@ -15,7 +15,7 @@ const (
 )
 
 func TestLoadImages(t *testing.T) {
-	// Assuming setup.sh has been run and data files are in ./data
+	// Assuming download_data.sh has been run and data files are in ./data
 	trainImagePath := filepath.Join("..", "data", "train-images-idx3-ubyte.gz")
 	
 	imageData, err := LoadImages(trainImagePath)

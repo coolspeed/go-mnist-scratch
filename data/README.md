@@ -23,4 +23,4 @@ Original source: [Yann LeCun's MNIST Database](http://yann.lecun.com/exdb/mnist/
 
 ## Setup
 
-These files are automatically downloaded by running the `setup.sh` script in the root directory.
+These files are automatically downloaded by running the `download_data.sh` script in the root directory.
