@@ -35,13 +35,6 @@ go-mnist-scratch/
 - **Hidden Layer**: 200 노드 (Sigmoid 활성화 함수)
 - **Output Layer**: 10 노드 (Softmax 활성화 함수)
 
-## 모델 파일 정보
-
-- **mnist_model.gob**: 학습된 신경망 모델을 **영구 저장(Persistence)**하기 위한 파일입니다.
-    - Go의 `encoding/gob` 패키지를 사용하여 `neural.Network` 구조체를 직렬화(Serialize)한 바이너리 포맷입니다.
-    - `cmd/train` 실행 시 학습 완료 후 생성되며, `cmd/server` 실행 시 이 파일을 로드하여 추론(Inference)에 사용합니다.
-    - `model.txt`(레거시 파일)는 더 이상 사용되지 않으며 삭제되었습니다.
-
 ## 시작하기
 
 MNIST 데이터셋은 `data/` 디렉토리에 이미 포함되어 있어 별도의 다운로드 없이 바로 시작할 수 있습니다.
@@ -54,7 +47,7 @@ make train
 go run cmd/train/main.go
 ```
 
-학습된 모델은 `mnist_model.gob` 파일로 저장됩니다.
+학습된 모델은 `mnist_model.gob` 파일로 저장됩니다. (현재 git clone만 하면 훈련 다 된 상태)
 
 ### 2. 검증 (Validation)
 
